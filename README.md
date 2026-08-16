@@ -90,8 +90,8 @@ dsh --profile headless "用 pwsh 工具执行命令 ls，逐字告诉我你传�
 
 - `ls` / `dir` → 变形成 `find`；PowerShell 专属参数（如 `-ErrorAction`）会被忽略。
 - `cat` / `type` → 变形成外部 `read`；需要 RTK 的 `read` 后端，某些环境找不到时命令失败。
-- `clear` → 报告句柄错误（RTK 对终端的处理与 PowerShell 原版不同）。
-- `rtk status` / `rtk config` 等配置类命令直接透传给 RTK。
+- PowerShell 内建/别名（`echo`、`pwd`、`clear`、`Get-ChildItem` 等）不是可执行文件，`rtk` 工具会报 `Binary 'xxx' not found`；这类命令应走 `pwsh` 工具（`pwsh` 会保持原生执行）。
+- `rtk config` / `rtk init` / `rtk gain` / `rtk rewrite` 等命令直接透传给 RTK（`rtk status` 并非有效子命令，真实命令表见 `rtk --help`）。
 
 薄层在以下边界会**回退到原生 PowerShell**（不交给 RTK，避免语义被破坏）：
 
