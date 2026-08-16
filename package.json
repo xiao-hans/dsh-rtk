@@ -25,6 +25,6 @@
     }
   },
   "scripts": {
-    "test": "node --test tests/rewrite.test.mjs tests/integration.test.mjs tests/schema.test.mjs"
+    "test": "node --test --experimental-test-isolation=none tests/rewrite.test.mjs tests/integration.test.mjs tests/schema.test.mjs"
   }
 }

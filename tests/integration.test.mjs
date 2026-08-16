@@ -95,7 +95,8 @@ test('pwsh tool auto-rewrites git status through rtk', async () => {
   assert.equal(rtkRewriteCall.command, "rtk rewrite 'git status'")
 
   const finalCall = shellCalls.at(-1)
-  assert.match(finalCall.command, /^\$env:RTK_DB_PATH=/)
+  assert.match(finalCall.command, /^\$p='/)
+  assert.match(finalCall.command, /\$env:RTK_DB_PATH=\$p/)
   assert.match(finalCall.command, /rtk git status$/)
 })
 
@@ -111,7 +112,8 @@ test('rtk tool maps ls to rtk find with RTK_DB_PATH', async () => {
 
   assert.equal(result.kind, 'foreground')
   assert.equal(shellCalls.length, 1)
-  assert.match(shellCalls[0].command, /^\$env:RTK_DB_PATH=/)
+  assert.match(shellCalls[0].command, /^\$p='/)
+  assert.match(shellCalls[0].command, /\$env:RTK_DB_PATH=\$p/)
   assert.match(shellCalls[0].command, /rtk find \. -maxdepth 1$/)
 })
 
