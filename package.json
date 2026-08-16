@@ -24,14 +24,6 @@
       "patch": "./cordis.patch.yml"
     }
   },
-  "peerDependencies": {
-    "@deepseek-ai/dsh-shell": ">=0.0.1-rc <2",
-    "@deepseek-ai/dsh-shell-env": ">=0.0.1-rc <2",
-    "@deepseek-ai/dsh-subprocess": ">=0.0.1-rc <2",
-    "@deepseek-ai/dsh-system-prompt": ">=0.0.1-rc <2",
-    "@deepseek-ai/dsh-tools": ">=0.0.1-rc <2",
-    "cordis": ">=4.0.0-rc <5"
-  },
   "scripts": {
     "test": "node --test tests/rewrite.test.mjs tests/integration.test.mjs tests/schema.test.mjs"
   }
