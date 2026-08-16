@@ -33,6 +33,6 @@
     "cordis": ">=4.0.0-rc <5"
   },
   "scripts": {
-    "test": "node --test tests/rewrite.test.mjs"
+    "test": "node --test tests/rewrite.test.mjs tests/integration.test.mjs"
   }
 }
