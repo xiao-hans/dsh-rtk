@@ -114,3 +114,44 @@ test('rtk tool maps ls to rtk find with RTK_DB_PATH', async () => {
   assert.match(shellCalls[0].command, /^\$env:RTK_DB_PATH=/)
   assert.match(shellCalls[0].command, /rtk find \. -maxdepth 1$/)
 })
+
+test('agent/created registers RTK pwsh on the agent scope using captured services', async () => {
+  const { ctx, registered, shellCalls } = makeCtx()
+
+  // Capture the agent/created listener that apply() installs.
+  let agentCreated = null
+  ctx.on = (event, cb) => {
+    if (event === 'agent/created') agentCreated = cb
+  }
+  apply(ctx)
+
+  assert.ok(typeof agentCreated === 'function', 'apply() must install an agent/created listener')
+
+  // Simulate an agent whose ctx exposes ONLY `tools` — no shell / shellEnv /
+  // get. The previous implementation resolved services from agent.ctx at
+  // execute time, which threw "cannot get property \"shellEnv\" without inject".
+  const agentTools = []
+  const agentCtx = {
+    tools: {
+      register(tool) {
+        agentTools.push(tool)
+        return () => {}
+      }
+    }
+  }
+  agentCreated({ agent: { ctx: agentCtx } })
+
+  assert.equal(agentTools.length, 1, 'agent-scope pwsh should be registered exactly once')
+  assert.equal(agentTools[0].name, 'pwsh')
+
+  // Executing the agent-scoped pwsh must still work via the services captured
+  // from the global apply ctx (not via agent.ctx resolution).
+  const result = await agentTools[0].execute(
+    { command: 'git status', description: 'Show git status' },
+    fakeExec()
+  )
+  assert.equal(result.kind, 'foreground')
+  assert.equal(result.stdout.text, 'filtered output')
+  // The rewrite must have reached the global shell service.
+  assert.ok(shellCalls.some((c) => c.command.startsWith('rtk rewrite')), 'agent-scoped pwsh should call rtk rewrite via captured shell')
+})
