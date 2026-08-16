@@ -53,7 +53,8 @@ function makeCtx() {
     get(key) {
       if (key === 'subprocess') return undefined
       return undefined
-    }
+    },
+    on() {}
   }
 
   return { ctx, registered, prompts, shellCalls }

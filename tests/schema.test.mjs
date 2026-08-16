@@ -113,7 +113,8 @@ function makeCtx() {
     systemPrompt: { section() {} },
     shellEnv: { collect() { return {} } },
     shell: { resolve: (r) => r, async run() { throw new Error('not executed during registration') } },
-    get() { return undefined }
+    get() { return undefined },
+    on() {}
   }
 }
 
