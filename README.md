@@ -1,6 +1,8 @@
 # dsh-rtk
 
-让 DSH 的 AI agent 在 Windows/PowerShell 里**自动用 RTK 压缩命令输出、节省 token** 的薄适配插件。
+**基于 RTK、专为 DSH 打造的薄层适配插件**：让 DSH 的 AI agent 在 Windows/PowerShell 里**自动用 RTK 压缩命令输出、节省 token**。
+
+> 定位：本插件不 fork、不修改 RTK——RTK 是底层能力提供者，本插件只是把 RTK 接进 DSH 的接入层。
 
 - 仓库：https://github.com/xiao-hans/dsh-rtk
 - 版本：v0.2.0
