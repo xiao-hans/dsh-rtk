@@ -3,6 +3,7 @@ import assert from 'node:assert/strict'
 import {
   windowsCompatibilityMap,
   postProcessRewritten,
+  runRtkRewrite,
   resolveRtkCommand
 } from '../lib/rewrite.js'
 
@@ -83,4 +84,41 @@ test('resolveRtkCommand passes through already-rtk commands', async () => {
 
   const result = await resolveRtkCommand(ctx, 'rtk git status')
   assert.equal(result, 'rtk git status')
+})
+
+test('runRtkRewrite accepts rewritten output on non-zero exit (real rtk behavior)', async () => {
+  const ctx = {
+    shell: {
+      resolve: (request) => request,
+      async run(request) {
+        assert.equal(request.command, "rtk rewrite 'git status'")
+        return {
+          exitCode: 3,
+          stdout: { text: 'rtk git status', truncated: false },
+          stderr: { text: '[rtk] No hook installed', truncated: false }
+        }
+      }
+    }
+  }
+
+  const rewritten = await runRtkRewrite(ctx, 'git status')
+  assert.equal(rewritten, 'rtk git status')
+})
+
+test('runRtkRewrite returns null when rtk rewrite emits no stdout and exits non-zero', async () => {
+  const ctx = {
+    shell: {
+      resolve: (request) => request,
+      async run() {
+        return {
+          exitCode: 1,
+          stdout: { text: '', truncated: false },
+          stderr: { text: '[rtk] No hook installed', truncated: false }
+        }
+      }
+    }
+  }
+
+  const rewritten = await runRtkRewrite(ctx, 'not-a-real-command-xyz')
+  assert.equal(rewritten, null)
 })
