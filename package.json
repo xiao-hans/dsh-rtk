@@ -1,8 +1,22 @@
 {
   "name": "@dsh-external/dsh-rtk",
-  "version": "0.1.0",
+  "version": "0.2.0",
   "description": "DSH thin adapter for RTK: auto-rewrites pwsh commands to rtk, adds a dedicated rtk tool, and handles Windows/PowerShell compatibility.",
   "private": true,
+  "keywords": [
+    "dsh",
+    "rtk",
+    "deepseek-harness",
+    "token-saving",
+    "powershell",
+    "windows",
+    "cordis",
+    "plugin"
+  ],
+  "repository": {
+    "type": "git",
+    "url": "git+https://github.com/xiao-hans/dsh-rtk.git"
+  },
   "type": "module",
   "main": "./lib/index.js",
   "types": "./lib/types/index.d.ts",

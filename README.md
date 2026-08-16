@@ -1,30 +1,80 @@
-# @dsh-external/dsh-rtk
+# dsh-rtk
 
-DSH 的 RTK 薄适配插件：不 fork RTK，只做 DSH 侧的接入层。
+让 DSH 的 AI agent 在 Windows/PowerShell 里**自动用 RTK 压缩命令输出、节省 token** 的薄适配插件。
 
-仓库：https://github.com/xiao-hans/dsh-rtk
+- 仓库：https://github.com/xiao-hans/dsh-rtk
+- 版本：v0.2.0
+- 许可证：MIT
+
+---
+
+## 背景：这是给谁、解决什么问题
+
+**DSH（DeepSeek Harness）** 是一个 AI 编程/agent 框架：LLM 通过"工具调用"（函数）执行 shell 命令，再把输出喂回给模型继续推理。输出越冗长，消耗的 token 越多。
+
+**RTK（Rust Token Killer）** 是一个命令行工具：把 `git log`、`find`、`grep`、`read` 等命令的输出压缩成紧凑形式，目标是"同样的信息，更少的 token"（实测单命令可省约 50%）。
+
+**痛点**：RTK 只能在终端里手动敲；DSH 里的模型只能调用工具、不能敲命令行，而且模型习惯用的 `pwsh` 工具会把命令的完整原文输出直接喂给模型——token 白白烧掉。
+
+**dsh-rtk 就是那座桥**：让 DSH 的模型在不知不觉中把命令交给 RTK 执行，享受省 token 的红利，同时不破坏原有命令语义。
+
+> 重要定位：这是 **DSH 侧的接入层（thin adapter）**，**不 fork、不修改 RTK**。所有命令变形/过滤逻辑都属于 RTK 本体，本插件只负责"接进来"。
+
+---
 
 ## 功能
 
-- 自动改写 `pwsh` 命令：常见命令自动变成 `rtk ...`。
-- 提供专用 `rtk` 工具，模型可以直接调用。
-- Windows/PowerShell 兼容映射：`ls` / `dir` / `cat` / `type` 等自动映射到 RTK 可用命令。
-- 将 RTK 统计数据库重定向到 `$DSH_HOME/storages/rtk-history.db`，避免 sandbox 拒绝访问；主路径不可写时在命令层探测并自动回退到 `$env:TEMP`。
-- 注入 DSH system prompt，指导模型优先使用 RTK。
+1. **专用 `rtk` 工具**：模型可以直接调用 RTK（`rtk("git log --oneline -3")`）。
+2. **RTK 感知的 `pwsh` 工具**：模型照常用 `pwsh("git status")`，插件自动改写成 `rtk git status` 执行。
+3. **Windows/PowerShell 兼容映射**：`ls`/`dir` → `rtk find`、`cat`/`type` → `rtk read`。
+4. **RTK 历史库重定向**：把 `RTK_DB_PATH` 指到 `$DSH_HOME/storages`（沙箱不可写时自动回退 `$env:TEMP`），让统计（`rtk gain`）在 DSH 里可用。
+5. **System prompt 引导**：告诉模型优先用 RTK，从源头减少 token。
+6. **Agent 作用域适配**：DSH 的 preset 会在 agent 作用域重挂原版 `pwsh`，插件在每个 agent 创建时把自己的 `pwsh` 注册进该作用域，保证 RTK 版生效，且不改动任何 preset 文件。
 
-## 当前状态
+---
 
-- 已安装进 DSH `desktop`（以及 `web`）profile；`pwsh` 会受 agent preset 作用域遮蔽，为此在 `agent/created` 时把 RTK 版 `pwsh` 注册到每个 agent 自己的作用域，避免修改任何 preset 文件。
-- 已通过 `headless` 无头会话做端到端验证：真实模型在带 preset 组合的 agent 中调用 `pwsh("ls")`，执行结果携带 RTK 二进制专属的 `[rtk]` 提示行，确认 RTK 版 `pwsh` 胜出并自动改写走 RTK（详见下文「端到端验证」）。
-- 前台执行已支持；后台任务（`run_in_background`）暂未实现，后续可补。
-- sandbox 升级字段（`sandbox_permissions` / `justification`）暂未实现；命令在 DSH 当前 sandbox 模式下执行。
+## 工作原理
+
+```
+模型调用 pwsh("git status")
+        │
+        ▼
+1. Windows 兼容映射（ls/cat/dir/type 等简单命令）
+        │
+        ▼
+2. 需要时调用 rtk rewrite 询问改写
+        │
+        ├── 能改写 → 执行 "rtk git status"（省 token）
+        └── 不能改写 → 执行原始命令（绝不阻塞）
+        │
+        ▼
+3. 结果按 DSH 工具契约返回（结构化 stdout/stderr、退出码、超时…）
+```
+
+**两条关键保证**：
+
+- **绝不阻塞**：`rtk` 不存在、`rtk rewrite` 失败、改写后执行失败，都回退原命令。
+- **绝不错改**：管道/复合命令（`ls -la | Select-Object -First 3`）和带 PowerShell 专属开关的 `cat`（`cat a.json -TotalCount 3`）**保持原生执行**，因为整行改写给 RTK 会破坏语义。
+
+---
+
+## 前置要求
+
+- **Windows + PowerShell**（插件针对 Windows/PowerShell 行为设计）
+- **RTK** 已安装且在 PATH 中（实测版本 0.45+）
+- **DSH**（DeepSeek Harness）
+- 可选：运行 `rtk init -g` 安装 hook，消除 `[rtk] No hook installed` 提示
+
+---
 
 ## 安装
 
-在 `~/.dsh/profiles/<profile>/package.json` 中加入依赖，并把本包加入 `dsh.profile.bundles`：
+把插件作为 bundle 装进目标 profile。以 `web` profile 为例，编辑 `~/.dsh/profiles/web/package.json`：
 
 ```json
 {
+  "name": "dsh-profile-web",
+  "private": true,
   "dsh": {
     "profile": {
       "bundles": [
@@ -40,73 +90,61 @@ DSH 的 RTK 薄适配插件：不 fork RTK，只做 DSH 侧的接入层。
 }
 ```
 
-然后：
+然后安装并启动：
 
 ```bash
 dsh plugin --profile web install
+dsh web
 ```
 
-## 端到端验证（headless）
+> 本仓库用 `link:` 直连源码目录，改完代码重启 dsh 即生效，无需重新安装。
 
-用无头 profile 跑一条一次性任务，可在真实 DSH（真实模型）中验证 `pwsh` 自动改写是否走 RTK：
+---
 
-1. 建 `~/.dsh/profiles/headless/package.json`（模板为 `dsh-base` + `dsh-headless`，叠加本插件）：
+## 用法（模型视角）
 
-```json
-{
-  "name": "dsh-profile-headless",
-  "private": true,
-  "dsh": {
-    "profile": {
-      "bundles": [
-        "@deepseek-ai/dsh-base",
-        "@deepseek-ai/dsh-headless",
-        "@dsh-external/dsh-rtk"
-      ]
-    }
-  },
-  "dependencies": {
-    "@dsh-external/dsh-rtk": "link:D:/HANXIAO/Documents/dsh-rtk"
-  }
-}
-```
+| 模型调用 | 实际执行 | 说明 |
+|---|---|---|
+| `pwsh("ls")` | `rtk find . -maxdepth 1` | 自动改写，省 token |
+| `pwsh("cat a.json")` | `rtk read a.json` | 自动改写 |
+| `pwsh("git status")` | `rtk git status` | 自动改写（token 大头） |
+| `rtk("git log --oneline -3")` | `rtk git log --oneline -3` | 专用工具，直接走 RTK |
+| `pwsh("pwd")` | `pwd`（原生） | PowerShell 内建，不改写 |
+| `pwsh("ls -la \| Select-Object -First 3")` | 原样（原生） | 管道保护，避免语义被破坏 |
+| `pwsh("cat a.json -TotalCount 3")` | 原样（原生） | PowerShell 开关保护 |
 
-并在 `~/.dsh/profiles/headless/node_modules/@dsh-external/` 下把 `dsh-rtk` 链接到本目录。
+---
 
-2. 在**带模型凭据的 shell**（如 `OPENCODE_GO_API_KEY`）里运行（务必从一个**不在系统 Temp 下**的目录运行，否则 Windows ACL 沙箱会因「temp root 必须在 workspace 之外」拒绝执行）：
+## 已知限制（RTK 本体行为，插件不改写）
+
+- `ls`/`dir` 会被 RTK 变形成 `find`，PowerShell 专属参数（如 `-ErrorAction`）会被忽略。
+- `cat`/`type` 会被变形成外部 `read`，需要 RTK 的 `read` 后端，某些环境会报 `Binary 'read' not found`。
+- PowerShell 内建/别名（`echo`、`pwd`、`clear`、`Get-ChildItem`）**不是可执行文件**，走 `rtk` 工具会报 `Binary 'xxx' not found`；这类命令请走 `pwsh` 工具（保持原生）。
+- `rtk status` 不是有效子命令（真实命令表见 `rtk --help`，如 `config`/`init`/`gain`/`rewrite`）。
+- 执行时可能出现 `[rtk] /!\ No hook installed` 提示——只是提醒未装 hook，不影响执行。
+
+---
+
+## 开发
 
 ```bash
-cd /path/to/dsh-rtk
-dsh --profile headless "用 pwsh 工具执行命令 ls，逐字告诉我你传入的确切命令字符串与输出"
+npm test        # 21 个单元/集成/schema 测试（已带 --experimental-test-isolation=none，沙箱内可跑）
 ```
 
-3. 判定：若模型返回的 stderr 含 RTK 专属横幅 `[rtk] /!\ No hook installed — run rtk init -g`，说明执行走的是 RTK 二进制（原生 pwsh 绝无此输出）——RTK 版 `pwsh` 在 agent 作用域胜出并自动改写成功。
+### 端到端验证（headless）
 
-> 已实测通过：`dsh --profile headless "…"` 中模型调用 `pwsh("ls")`，目录列表输出 + `[rtk]` 横幅，确认走 RTK。
-
-## 已知的 RTK 本体行为（薄层不改写）
-
-本插件是薄层，不重写 RTK 的过滤/变形逻辑；以下行为来自 RTK 二进制本身，实测复现：
-
-- `ls` / `dir` → 变形成 `find`；PowerShell 专属参数（如 `-ErrorAction`）会被忽略。
-- `cat` / `type` → 变形成外部 `read`；需要 RTK 的 `read` 后端，某些环境找不到时命令失败。
-- PowerShell 内建/别名（`echo`、`pwd`、`clear`、`Get-ChildItem` 等）不是可执行文件，`rtk` 工具会报 `Binary 'xxx' not found`；这类命令应走 `pwsh` 工具（`pwsh` 会保持原生执行）。
-- `rtk config` / `rtk init` / `rtk gain` / `rtk rewrite` 等命令直接透传给 RTK（`rtk status` 并非有效子命令，真实命令表见 `rtk --help`）。
-
-薄层在以下边界会**回退到原生 PowerShell**（不交给 RTK，避免语义被破坏）：
-
-- 复合/管道命令（含 `|`、`;`、`&&`、`||`、重定向或换行），如 `ls -la | Select-Object -First 3`——整行改写给 rtk 会吞掉管道。
-- `cat` / `type` 带 PowerShell 专属开关（`-TotalCount` / `-Tail` / `-Raw` 等），如 `cat file.json -TotalCount 3`——rtk read 不认这些参数。
-- RTK 历史库主路径（`$DSH_HOME/storages`）在沙箱内不可写时，自动回退到 `$env:TEMP\rtk-history.db` 保证 tracking 可用。
-
-## 测试
+用无头 profile 在真实 DSH（真实模型）里验证 `pwsh` 自动改写：
 
 ```bash
-npm test
+cd /path/to/dsh-rtk   # 不要在系统 Temp 下运行（Windows ACL 沙箱要求 temp root 在 workspace 之外）
+dsh --profile headless "用 pwsh 工具执行命令 ls，告诉我你传入的确切命令字符串与输出"
 ```
 
-在禁止子进程派生的沙箱内，测试需以单进程隔离模式运行（`npm test` 已默认带上）：
+判定标准：若模型返回的 stderr 含 RTK 专属横幅 `[rtk] ... No hook installed ...`，说明执行走了 RTK（原生 pwsh 绝无此输出），改写链路正常。
 
-```bash
-node --test --experimental-test-isolation=none tests/rewrite.test.mjs tests/integration.test.mjs tests/schema.test.mjs
-```
+---
+
+## 版本与许可证
+
+- **v0.2.0**：相比 v0.1.0 新增——agent 作用域遮蔽修复、服务注入重构、管道/PowerShell 开关保护、RTK_DB_PATH 沙箱回退、README 完善。
+- 本仓库使用 [MIT License](./LICENSE)。
