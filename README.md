@@ -71,7 +71,43 @@
 
 ## 安装
 
-把插件作为 bundle 装进目标 profile。以 `web` profile 为例，编辑 `~/.dsh/profiles/web/package.json`：
+把插件作为 bundle 装进目标 profile。以 `web` profile 为例，编辑 `~/.dsh/profiles/web/package.json`。
+
+### 方式 A：Git 依赖（其他人 / 分发场景）
+
+仓库已公开并打了版本 tag，**任何人在任意机器上都可直接安装**，无需本地源码。
+
+```json
+{
+  "name": "dsh-profile-web",
+  "private": true,
+  "dsh": {
+    "profile": {
+      "bundles": [
+        "@deepseek-ai/dsh-base",
+        "@deepseek-ai/dsh-web-app",
+        "@dsh-external/dsh-rtk"
+      ]
+    }
+  },
+  "dependencies": {
+    "@dsh-external/dsh-rtk": "github:xiao-hans/dsh-rtk#v0.2.0"
+  }
+}
+```
+
+然后安装并启动：
+
+```bash
+dsh plugin --profile web install
+dsh web
+```
+
+> 前置：目标机器装好 **Windows + PowerShell + RTK**。插件**零运行时依赖**（只 import Node 内置模块），`dsh plugin install` 本质是转发给 profile 目录里的 pnpm，pnpm 原生支持 `github:` 依赖，克隆即可用。
+
+### 方式 B：本地 link（仅开发者本人）
+
+指向本机源码目录，改代码重启 dsh 即生效，无需重新安装：
 
 ```json
 {
@@ -92,14 +128,7 @@
 }
 ```
 
-然后安装并启动：
-
-```bash
-dsh plugin --profile web install
-dsh web
-```
-
-> 本仓库用 `link:` 直连源码目录，改完代码重启 dsh 即生效，无需重新安装。
+> 其余配置与方式 A 相同。
 
 ---
 
