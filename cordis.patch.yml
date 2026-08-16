@@ -1,0 +1,9 @@
+# dsh-rtk bundle layer:
+# Disable the stock pwsh tool and replace it with the RTK-aware pwsh tool.
+- id: tool-pwsh
+  disabled: true
+
+- insert:
+    - id: dsh-rtk
+      name: '@dsh-external/dsh-rtk'
+      config: {}
